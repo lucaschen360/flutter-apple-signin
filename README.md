@@ -81,3 +81,60 @@ Then configure your OAuth providers in **appsettings.json**:
 ```
 
 Then copy your Apple Private Key to your Apps **Content Folder** before running your App then Signing In at https://localtest.me:5001/login
+
+### Advanced Configuration
+
+The behavior of the `AppleAuthProvider` can be further customized with the following configuration:
+
+```csharp
+public class AppleAuthProvider
+{
+    // Apple Developer Membership Team ID
+    // appsettings: oauth.apple.TeamId
+    public string TeamId
+    
+    // Service ID
+    // appsettings: oauth.apple.ClientId
+    public string ClientId
+
+    // The Private Key ID
+    // appsettings: oauth.apple.KeyId
+    public string KeyId
+    
+    // Path to .p8 Private Key 
+    // appsettings: oauth.apple.KeyPath
+    public string KeyPath
+
+    // Base64 of .p8 Private Key bytes 
+    // appsettings: oauth.apple.KeyBase64
+    public string KeyBase64
+    
+    // .p8 Private Key bytes 
+    public byte[] KeyBytes
+    
+    // Customize ClientSecret JWT
+    public Func<AppleAuthProvider, string> ClientSecretFactory
+    
+    // When JWT Client Secret expires, defaults to Apple Max 6 Month Expiry 
+    // default: 6 months in secs 
+    // appsettings: oauth.apple.ClientSecretExpiry
+    public TimeSpan ClientSecretExpiry
+    
+    // Optional: static list of Apple's public keys, defaults to fetching from https://appleid.apple.com/auth/keys
+    // appsettings: oauth.apple.IssuerSigningKeysJson
+    public string IssuerSigningKeysJson
+
+    // Whether to cache private Key if loading from KeyPath, 
+    // default: true
+    // appsettings: oauth.apple.CacheKey
+    public bool CacheKey
+
+    // Whether to cache Apple's public keys
+    // default: true
+    // appsettings: oauth.apple.CacheKey
+    public bool CacheIssuerSigningKeys
+
+    // Provide custom DisplayName resolver function when not allowed by User and sent by Apple
+    public Func<IAuthSession,IAuthTokens, string> ResolveUnknownDisplayName
+}
+```
