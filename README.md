@@ -58,7 +58,7 @@ to view a dump of all User Sessions & User Auth Info stored in the registered RD
  - https://localtest.me:5001/users
 
 
-# web
+## Create project with preferred Auth Configuration
 
 Alternatively you can create a working project from scratch with your preferred configuration using the [mix tool](https://docs.servicestack.net/mix-tool), e.g: 
 
