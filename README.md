@@ -120,7 +120,7 @@ public class AppleAuthProvider
     // appsettings: oauth.apple.ClientSecretExpiry
     public TimeSpan ClientSecretExpiry
     
-    // Optional: static list of Apple's public keys, defaults to fetching from https://appleid.apple.com/auth/keys
+    // JSON list of Apple's public keys, defaults to fetching from https://appleid.apple.com/auth/keys
     // appsettings: oauth.apple.IssuerSigningKeysJson
     public string IssuerSigningKeysJson
 
