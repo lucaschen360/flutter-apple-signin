@@ -4,14 +4,14 @@ Sign In with Apple Integration Examples
 
 ### Sign In with Apple Requirements
 
- - Membership Team ID from https://developer.apple.com/account/#/membership/
- - Create & configure App ID from https://developer.apple.com/account/resources/identifiers/list
- - Use App Id to create & configure Service ID from https://developer.apple.com/account/resources/identifiers/list/serviceId
- - Use App Id to create & configure Private Key from https://developer.apple.com/account/resources/authkeys/list
+ - Membership **Team ID** from https://developer.apple.com/account/#/membership/
+ - Create & configure **App ID** from https://developer.apple.com/account/resources/identifiers/list
+ - Use **App ID** to create & configure **Service ID** from https://developer.apple.com/account/resources/identifiers/list/serviceId
+ - Use **App ID** to create & configure **Private Key** from https://developer.apple.com/account/resources/authkeys/list
 
 Note: Service ID must be configured with non-localhost trusted domain and HTTPS callback URL, for development you can use:
- - Domain: localtest.me
- - Callback URL: https://localtest.me:5001/auth/apple
+ - Domain: `localtest.me`
+ - Callback URL: `https://localtest.me:5001/auth/apple`
 
 Okta has a [good walkthrough explaining Sign In with Apple](https://developer.okta.com/blog/2019/06/04/what-the-heck-is-sign-in-with-apple) and 
 steps required to create the above resources.
