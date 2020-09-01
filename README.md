@@ -2,7 +2,7 @@
 
 Sign In with Apple Integration Examples
 
-![](https://forums.servicestack.net/uploads/default/original/2X/2/268a89d040b8e6e9ea22a7830f9e891b82c068d4.png)
+![](https://imgur.com/a/9FDEvzf)
 
 ### Sign In with Apple Requirements
 
