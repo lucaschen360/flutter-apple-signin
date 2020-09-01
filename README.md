@@ -2,7 +2,7 @@
 
 Sign In with Apple Integration Examples
 
-![](https://imgur.com/a/9FDEvzf)
+![](https://i.imgur.com/cP0cFbX_d.png?maxwidth=900)
 
 ### Sign In with Apple Requirements
 
