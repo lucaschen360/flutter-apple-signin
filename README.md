@@ -1,6 +1,6 @@
-# AppleSignIn
+# Sign In with Apple
 
-Sign In with Apple Integration Examples
+ServiceStack Sign In with Apple Integration Examples
 
 ![](https://i.imgur.com/cP0cFbX_d.png?maxwidth=900)
 
