@@ -10,10 +10,8 @@ namespace web.ServiceInterface
 {
     public class MyServices : Service
     {
-        public object Any(Hello request)
-        {
-            return new HelloResponse { Result = $"Hello, {request.Name}!" };
-        }
+        public object Any(Hello request) => new HelloResponse { Result = $"Hello, {request.Name}!" };
+        public object Any(HelloSecure request) => new HelloResponse { Result = $"Secure {request.Name}!" };
 
         public object Any(AllUserInfo request)
         {

@@ -14,6 +14,7 @@ using ServiceStack.Web;
 using System;
 using ServiceStack.Text;
 using ServiceStack.Logging;
+using ServiceStack.Validation;
 
 namespace web
 {
@@ -52,6 +53,8 @@ namespace web
                 UseSameSiteCookies = true,
                 DebugMode = HostingEnvironment.IsDevelopment()
             });
+            
+            Plugins.Add(new ValidationFeature());
         }
     }
 }

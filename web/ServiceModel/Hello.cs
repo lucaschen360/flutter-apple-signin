@@ -9,6 +9,14 @@ namespace web.ServiceModel
         public string Name { get; set; }
     }
 
+    [ValidateIsAuthenticated]
+    [Route("/hello/secure")]
+    [Route("/hello/secure/{Name}")]
+    public class HelloSecure : IReturn<HelloResponse>
+    {
+        public string Name { get; set; }
+    }
+
     public class HelloResponse
     {
         public string Result { get; set; }
