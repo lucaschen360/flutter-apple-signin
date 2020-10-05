@@ -76,8 +76,8 @@ Where it adds support for `?ReturnUrl=android:<android-package-id>` Callback URL
 var redirectURL = "https://dev.servicestack.com:5001/auth/apple?ReturnUrl=android:com.servicestack.auth";
 final appleIdCredential = await SignInWithApple.getAppleIDCredential(scopes: [
     AppleIDAuthorizationScopes.email,
-    AppleIDAuthorizationScopes.fullName,
-], webAuthenticationOptions: WebAuthenticationOptions(clientId:clientID, redirectUri:Uri.parse(redirectURL)));
+    AppleIDAuthorizationScopes.fullName], 
+webAuthenticationOptions: WebAuthenticationOptions(clientId:clientID, redirectUri:Uri.parse(redirectURL)));
 ```
 
 #### Apple Services ID configuration
