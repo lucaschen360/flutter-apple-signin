@@ -12,6 +12,7 @@ src/**/*.js
 *bundle.min.js
 dist/
 GPUCache
+appsettings.Development.json
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
