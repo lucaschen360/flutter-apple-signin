@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:provider/provider.dart';
 import 'package:flutter/material.dart';
+import 'package:servicestack/client.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -60,6 +62,9 @@ class AppState extends ChangeNotifier {
 void initClientAuth(IServiceClient client, AuthenticateResponse auth) {
   client.bearerToken = auth?.bearerToken;
   client.refreshToken = auth?.refreshToken;
+  if (auth == null) {
+    (client as JsonServiceClient)?.cookies?.clear();
+  }
 }
 
 Future<bool> checkIsAuthenticated(IServiceClient client) async {
@@ -139,21 +144,28 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   handleSignIn(AppState state) async {
+    result = '';
     try {
-      var redirectURL = "https://dev.servicestack.com:5001/auth/apple?ReturnUrl=android:com.servicestack.auth";
       var clientID = "net.servicestack.myappid";
-      final appleIdCredential = await SignInWithApple.getAppleIDCredential(scopes: [
-        AppleIDAuthorizationScopes.email,
-        AppleIDAuthorizationScopes.fullName,
-      ], webAuthenticationOptions: WebAuthenticationOptions(clientId: clientID, redirectUri: Uri.parse(redirectURL)));
+      var redirectURL = "https://dev.servicestack.com:5001/auth/apple?ReturnUrl=android:com.servicestack.auth";
+      var scopes = [ AppleIDAuthorizationScopes.email, AppleIDAuthorizationScopes.fullName ];
+      final credentials = Platform.isAndroid
+        ? await SignInWithApple.getAppleIDCredential(scopes: scopes,
+            webAuthenticationOptions: WebAuthenticationOptions(clientId:clientID, redirectUri:Uri.parse(redirectURL)))
+        : await SignInWithApple.getAppleIDCredential(scopes: scopes);
 
       // Sign In with Apple success!
-      var idToken = appleIdCredential.identityToken;
+      print(credentials);
+      var idToken = credentials.identityToken;
 
       // Authenticate with server using idToken & convert into stateless JWT Cookie + persistent auth token
       var response = await state.client.post(Authenticate()
         ..provider = 'apple'
-        ..accessToken = idToken); // JwtAuthProvider.UseTokenCookie returns JWT in ss-tok
+        ..accessToken = idToken, args: {
+          'authorizationCode': credentials.authorizationCode,
+          'givenName': credentials.givenName,
+          'familyName': credentials.familyName,
+        }); // JwtAuthProvider.UseTokenCookie returns JWT in ss-tok
 
       state.saveAuth(response);
     } catch (e) {
