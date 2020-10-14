@@ -25,8 +25,10 @@ struct ContentView: View {
                 if let auth = vm.auth {
                     VStack {
                         Text("Hi \(auth.displayName ?? "")")
-                        Text("authState: \(vm.authState)")
-                            .foregroundColor(vm.authState == "authorized" ? .green : .primary)
+                        if vm.authState != "" {
+                            Text("authState: \(vm.authState)")
+                                .foregroundColor(vm.authState == "authorized" ? .green : .primary)
+                        }
                         Button("Sign Out") { vm.signOut() }
                     }
                 } else {
