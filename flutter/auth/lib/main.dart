@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:provider/provider.dart';
 import 'package:flutter/material.dart';
-import 'package:servicestack/client.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -63,13 +62,13 @@ void initClientAuth(IServiceClient client, AuthenticateResponse auth) {
   client.bearerToken = auth?.bearerToken;
   client.refreshToken = auth?.refreshToken;
   if (auth == null) {
-    (client as JsonServiceClient)?.cookies?.clear();
+    client.clearCookies();
   }
 }
 
 Future<bool> checkIsAuthenticated(IServiceClient client) async {
   try {
-    var response = await client.post(Authenticate());
+    await client.post(Authenticate());
     return true;
   } catch (e) {
     return false;

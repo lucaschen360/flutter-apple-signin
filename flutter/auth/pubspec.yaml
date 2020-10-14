@@ -23,7 +23,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  servicestack: ^1.0.17
+  servicestack: ^1.0.19
   sign_in_with_apple: ^2.5.2
   provider: ^4.3.2+2
   shared_preferences: ^0.5.12
