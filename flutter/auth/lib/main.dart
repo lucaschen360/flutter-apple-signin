@@ -12,7 +12,10 @@ import 'dtos.dart';
 void main() {
   runApp(ChangeNotifierProvider(
     create: (context) => AppState(
-        client: ClientFactory.createWith(ClientOptions(baseUrl: 'https://dev.servicestack.com:5001', ignoreCert: kDebugMode))),
+        client: kDebugMode
+          ? ClientFactory.createWith(ClientOptions(baseUrl:'https://dev.servicestack.com:5001', ignoreCert:true))
+          : ClientFactory.create("https://prod.app")
+    ),
     child: MyApp(),
   ));
 }
