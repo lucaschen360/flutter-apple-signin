@@ -11,25 +11,97 @@ ServiceStack Sign In with Apple Integration Examples
  - Use **App ID** to create & configure **Service ID** from https://developer.apple.com/account/resources/identifiers/list/serviceId
  - Use **App ID** to create & configure **Private Key** from https://developer.apple.com/account/resources/authkeys/list
 
+#### App Requirements Walkthrough
+
+Okta has a [good walkthrough explaining Sign In with Apple](https://developer.okta.com/blog/2019/06/04/what-the-heck-is-sign-in-with-apple) and steps required to create the above resources.
+
 Note: Service ID must be configured with non-localhost trusted domain and HTTPS callback URL, for development you can use:
  - Domain: `dev.servicestack.com`
  - Callback URL: `https://dev.servicestack.com:5001/auth/apple` 
 
-### Android Support
+See docs on [Configure localhost development dev certificate](https://docs.servicestack.net/netcore-localhost-cert) for instructions & info for being able to use a single `local.servicestack.com` or `dev.servicestack.com` local DNS names to support local development of all platforms.
 
-To support Android we recommend using `dev.servicestack.com` which resolves to the `10.0.2.2` special IP in the Android Emulator that 
-maps to `127.0.0.1` on your Host OS. To also be able to use it during development you'll need to add an entry in your OS's `hosts` file
+#### Apple Services ID configuration
+
+If you also need to support Android you'll also need to register the `https://dev.servicestack.com:5001/auth/apple?ReturnUrl=android:com.servicestack.auth` URL will as a valid Callback URL in your Apple **Services ID** configuration.
+
+## Getting Started
+
+As the elliptic curve algorithms required to integrate with Sign In with Apple requires .NET Core 3 APIs the `AppleAuthProvider` is implemented in the **ServiceStack.Extensions** NuGet Package.
+
+### Create project with preferred Auth Configuration
+
+A quick way to can create a working project from scratch with your preferred configuration using the [mix tool](https://docs.servicestack.net/mix-tool), e.g: 
+
+    $ md web && cd web
+    $ x mix init auth-ext auth-db sqlite
+
+This creates an empty project, with Auth Enabled, adds the **ServiceStack.Extensions** NuGet package, registers OrmLite, SQLite and the `OrmLiteAuthRepository`.
+
+Copy your Apple **Private Key** to your Apps **Content Folder** then configure your OAuth providers in **appsettings.json**:
+
+```json
+{
+  "oauth.apple.RedirectUrl": "https://dev.servicestack.com:5001/",
+  "oauth.apple.CallbackUrl": "https://dev.servicestack.com:5001/auth/apple",
+  "oauth.apple.TeamId": "{Team ID}",
+  "oauth.apple.ClientId": "{Service ID}",
+  "oauth.apple.BundleId": "{Bundle ID}",
+  "oauth.apple.KeyId": "{Private KeyId}",
+  "oauth.apple.KeyPath": "AuthKey_{Private KeyId}.p8",
+  "jwt.AuthKeyBase64": "{Base64 JWT Auth Key}"
+}
+```
+
+When needing to support Mobile or Desktop Apps using OAuth Providers like Sign In with Apple, we recommend using it in combination with the [JWT Auth Provider](https://docs.servicestack.net/jwt-authprovider) with `UseTokenCookie` enabled so the Authorization is returned in a stateless JWT Token that can be persisted for optimal Authentication across App restarts, e.g:
+
+```csharp
+Plugins.Add(new AuthFeature(() => new CustomUserSession(),
+    new IAuthProvider[] {
+        new JwtAuthProvider(AppSettings) {
+            UseTokenCookie = true,
+        },
+        new AppleAuthProvider(AppSettings)
+            .Use(AppleAuthFeature.FlutterSignInWithApple), 
+    }));
+```
+
+### Clone working Client & Server Project 
+
+For a working example you can **clone** or **fork** this repo or alternatively download the latest master `.zip` with:
+
+    $ x download NetCoreApps/AppleSignIn
+
+Then after updating **appsettings.json** with your iOS App's configuration, copying your Private Key into the `web` Content Folder you're all set to run your App:
+
+    $ dotnet run
+
+#### Android Support
+
+To support Android we recommend using `dev.servicestack.com` which resolves to the `10.0.2.2` special IP in the Android Emulator that maps to `127.0.0.1` on your Host OS. To also be able to use it during development you'll need to add an entry in your OS's `hosts` file
 (e.g. `%SystemRoot%\System32\drivers\etc\hosts` for Windows or `/system/etc/hosts` on macOS/Linux):
 
     127.0.0.1       dev.servicestack.com
 
-If you don't need to support android you can use `local.servicestack.com` instead which resolves to `127.0.0.1`, please see 
-[Configuring localhost development dev certificate](https://docs.servicestack.net/netcore-localhost-cert) for more info.
+If you don't need to support android you can use `local.servicestack.com` instead which resolves to `127.0.0.1`, please see [configuring localhost development dev certificate](https://docs.servicestack.net/netcore-localhost-cert) for more info.
+
+Then you can view your App using the non-localhost domain name:
+
+    https://dev.servicestack.com:5001/
+
+You can then use the [Embedded Login Page](https://docs.servicestack.net/authentication-and-authorization#embedded-login-page-fallback) which renders the Sign In button for each of the registered OAuth providers in your `AuthFeature`:
+
+ - https://dev.servicestack.com:5001/login
+
+Clicking on **Sign in with Apple** button should let you Sign In with Apple. After successfully signing in you can view the `AllUsersInfo` Service to view a dump of all User Sessions & User Auth Info stored in the registered RDBMS:
+
+ - https://dev.servicestack.com:5001/users
+
+### Flutter iOS & Apple App
 
 ### Flutter Android sign_in_with_apple requirements
 
-It's already configured in this project, but to be able to use [sign_in_with_apple](https://pub.dev/packages/sign_in_with_apple) in your own
-Flutter Android Apps you'll need to register this Android intent in your **AndroidManifest.xml**:
+It's already configured in this project, but to be able to use [sign_in_with_apple](https://pub.dev/packages/sign_in_with_apple) in your own Flutter Android Apps you'll need to register this Android intent in your **AndroidManifest.xml**:
 
 ```xml
 <application ...>
@@ -58,8 +130,7 @@ Flutter Android Apps you'll need to register this Android intent in your **Andro
 </application>
 ```
 
-To get the `AppleAuthProvider` to redirect to your Android's App intent you'll need to configure it with
-`.Use(AppleAuthFeature.FlutterSignInWithApple)`, e.g:
+To get the `AppleAuthProvider` to redirect to your Android's App intent you'll need to configure it with `.Use(AppleAuthFeature.FlutterSignInWithApple)`, e.g:
 
 #### ServiceStack AppleAuthProvider configuration
 
@@ -80,80 +151,6 @@ final appleIdCredential = await SignInWithApple.getAppleIDCredential(scopes: [
 webAuthenticationOptions: WebAuthenticationOptions(clientId:clientID, redirectUri:Uri.parse(redirectURL)));
 ```
 
-#### Apple Services ID configuration
-
-The `https://dev.servicestack.com:5001/auth/apple?ReturnUrl=android:com.servicestack.auth` URL will then also need to be registered as a valid
-Callback URL in your Apple **Services ID** configuration.
-
-### Getting Started
-
-Okta has a [good walkthrough explaining Sign In with Apple](https://developer.okta.com/blog/2019/06/04/what-the-heck-is-sign-in-with-apple) and 
-steps required to create the above resources.
-
-As the elliptic curve algorithms required to integrate with Sign In with Apple requires .NET Core 3 APIs the `AppleAuthProvider` is implemented
-in the **ServiceStack.Extensions** v5.9.3+ NuGet Package that's [now on MyGet](https://docs.servicestack.net/myget).
-
-You can either **clone** or **fork** this repo, alternatively you can download the latest master .zip with:
-
-    $ x download NetCoreApps/AppleSignIn
-
-To configure Sign In with Apple, create the above resources in your developer account and use it to populate the `oauth.apple.*` settings in
-**appsettings.json**:
-
-```json
-{
-  "oauth.apple.RedirectUrl": "https://dev.servicestack.com:5001/",
-  "oauth.apple.CallbackUrl": "https://dev.servicestack.com:5001/auth/apple",
-  "oauth.apple.TeamId": "{Team ID}",
-  "oauth.apple.ClientId": "{Service ID}",
-  "oauth.apple.KeyId": "{Private KeyId}",
-  "oauth.apple.KeyPath": "AuthKey_{Private KeyId}.p8",
-}
-```
-
-Then after copying your Private Key into the `web` Content Folder you're all set to run your App:
-
-    $ dotnet run
-
-Then view your App using the non-localhost domain name:
-
-    https://dev.servicestack.com:5001/
-
-You can then use the [Embedded Login Page](https://docs.servicestack.net/authentication-and-authorization#embedded-login-page-fallback) which
-renders the Sign In button for each of the registered OAuth providers in your `AuthFeature`:
-
- - https://dev.servicestack.com:5001/login
-
-Clicking on **Sign in with Apple** button should let you Sign In with Apple. After successfully signing in you can view the `AllUsersInfo` Service
-to view a dump of all User Sessions & User Auth Info stored in the registered RDBMS:
-
- - https://dev.servicestack.com:5001/users
-
-
-## Create project with preferred Auth Configuration
-
-Alternatively you can create a working project from scratch with your preferred configuration using the [mix tool](https://docs.servicestack.net/mix-tool), e.g: 
-
-    $ md web && cd web
-    $ x mix init auth-ext auth-db sqlite
-
-This creates an empty project, with Auth Enabled, adds the **ServiceStack.Extensions** NuGet package, registers OrmLite, SQLite and the `OrmLiteAuthRepository`.
-
-Then configure your OAuth providers in **appsettings.json**:
-
-```json
-{
-  "oauth.apple.RedirectUrl": "https://dev.servicestack.com:5001/",
-  "oauth.apple.CallbackUrl": "https://dev.servicestack.com:5001/auth/apple",
-  "oauth.apple.TeamId": "{Team ID}",
-  "oauth.apple.ClientId": "{Service ID}",
-  "oauth.apple.KeyId": "{Private KeyId}",
-  "oauth.apple.KeyPath": "AuthKey_{Private KeyId}.p8",
-}
-```
-
-Then copy your Apple Private Key to your Apps **Content Folder** before running your App then Signing In at https://dev.servicestack.com:5001/login
-
 ### Advanced Configuration
 
 The behavior of the `AppleAuthProvider` can be further customized with the following configuration:
@@ -168,6 +165,10 @@ public class AppleAuthProvider
     // Service ID
     // appsettings: oauth.apple.ClientId
     public string ClientId
+        
+    // Bundle ID
+    // appsettings: oauth.apple.BundleId
+    public string BundleId
 
     // The Private Key ID
     // appsettings: oauth.apple.KeyId

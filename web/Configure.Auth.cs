@@ -37,8 +37,7 @@ namespace web
                 new IAuthProvider[] {
                     new CredentialsAuthProvider(AppSettings),     /* Sign In with Username / Password credentials */
                     new JwtAuthProvider(AppSettings) {
-                        UseTokenCookie = true,
-                        AuthKey = AesUtils.CreateKey(),
+                        UseTokenCookie = true
                     },
                     new AppleAuthProvider(AppSettings)           /* Configure: https://developer.okta.com/blog/2019/06/04/what-the-heck-is-sign-in-with-apple */
                         .Use(AppleAuthFeature.FlutterSignInWithApple), 
