@@ -2,7 +2,7 @@
 
 ServiceStack Sign In with Apple Integration Examples
 
-![](https://i.imgur.com/cP0cFbX_d.png?maxwidth=900)
+![](https://raw.githubusercontent.com/ServiceStack/docs/master/docs/images/dev/web-signin-with-apple-login.png)
 
 ### Sign In with Apple Requirements
 
@@ -53,6 +53,8 @@ Copy your Apple **Private Key** to your Apps **Content Folder** then configure y
 }
 ```
 
+> See JWT docs for how to [Generate a new Auth Key](https://docs.servicestack.net/jwt-authprovider#generate-new-auth-key)
+
 When needing to support Mobile or Desktop Apps using OAuth Providers like Sign In with Apple, we recommend using it in combination with the [JWT Auth Provider](https://docs.servicestack.net/jwt-authprovider) with `UseTokenCookie` enabled so the Authorization is returned in a stateless JWT Token that can be persisted for optimal Authentication across App restarts, e.g:
 
 ```csharp
@@ -97,7 +99,235 @@ Clicking on **Sign in with Apple** button should let you Sign In with Apple. Aft
 
  - https://dev.servicestack.com:5001/users
 
-### Flutter iOS & Apple App
+## Flutter iOS & Android App
+
+A reference client Flutter iOS & Android App showcasing integration with Sign In with Apple is available at [/flutter/auth](https://github.com/NetCoreApps/AppleSignIn/tree/master/flutter/auth).
+
+![](https://raw.githubusercontent.com/ServiceStack/docs/master/docs/images/dev/android-flutter-auth.png)
+
+The first task the App does is to create an instance of the `IServiceClient` it should use using the recommended `ClientFactory` API which in combination with the conditional import below returns the appropriate configured Service Client implementation for the platform it's running on, for iOS & Android it uses the native `JsonServiceClient`:
+
+```dart
+import 'package:servicestack/web_client.dart' if (dart.library.io) 'package:servicestack/client.dart';
+//...
+
+AppState(client: kDebugMode
+  ? ClientFactory.createWith(ClientOptions(baseUrl:'https://dev.servicestack.com:5001', ignoreCert:true))
+  : ClientFactory.create("https://prod.app"))
+```
+
+Using a constant like `kDebugMode` ensures that create Service Clients that ignore SSL Certificate errors are stripped from production builds. 
+
+### sign_in_with_apple package
+
+To support both iOS and Android we're utilizing the [sign_in_with_apple](https://pub.dev/packages/sign_in_with_apple) `SignInWithAppleButton` which takes care of invoking iOS's native Sign In with Apple behavior as well as enabling support for Android by wrapping an OAuth Web Flow in a WebView. Both approaches, if successful will result in an Authenticated IdentityToken which you can use to Authenticate with your ServiceStack instance to establish an Authenticated session.
+
+The `SignInWithAppleButton` functions as a normal button which is placed in your Widgets `build()` method where you want the UI Button to appear, in this case it'll render the **Sign in with Apple** button if the user is not Authenticated otherwise it renders a **Sign Out** `FlatButton`:
+
+```dart
+state.isAuthenticated
+  ? FlatButton(onPressed: state.signOut, child: Text('Sign Out'))
+  : SignInWithAppleButton(onPressed: () async { await handleSignIn(state); })
+```
+
+When either is pressed it invokes its `onPressed` event where the Apple Sign in functionality is initiated,
+within the `handleSignIn` implementation which reflects the behavior of the different platforms with Android 
+using the OAuth Web Flow to authenticate with its ReturnUrl needing the Android's App Id that it should redirect to.
+
+The native integration in iOS is more streamlined with iOS handling the Auth flow with Apple's servers:
+
+```dart
+var clientID = "net.servicestack.myappid";
+var redirectURL = "https://dev.servicestack.com:5001/auth/apple?ReturnUrl=android:com.servicestack.auth";
+var scopes = [ AppleIDAuthorizationScopes.email, AppleIDAuthorizationScopes.fullName ];
+final credentials = Platform.isAndroid
+  ? await SignInWithApple.getAppleIDCredential(scopes: scopes,
+      webAuthenticationOptions: WebAuthenticationOptions(clientId:clientID, redirectUri:Uri.parse(redirectURL)))
+  : await SignInWithApple.getAppleIDCredential(scopes: scopes);
+```
+
+### New User Registration
+
+When a user signs into your App the first time they'll be presented with the option on what name they want to use and whether or not they want to provide their own email or use Apple's hidden email forwarding service:
+
+![](https://raw.githubusercontent.com/ServiceStack/docs/master/docs/images/dev/ios-flutter-sign-in-with-apple-new-user.png)
+
+Subsequent re-authentication attempts in iOS are more seamless & effortless for users whilst Android users will still need to go through the OAuth web flow:
+
+![](https://raw.githubusercontent.com/ServiceStack/docs/master/docs/images/dev/android-flutter-auth-request.png)
+
+If Sign in is successful it will return the identity token which we can use to Authenticate against our remote ServiceStack instance. Importantly Apple only returns the Users name on its initial sign in which we'll
+need to include in our `Authenticate` request in order for it to be used when creating the new user account.
+The same code can also be used to re-authenticate existing users:
+
+```dart
+// Sign in with Apple success!
+var idToken = credentials.identityToken;
+
+// Authenticate with server using idToken & convert into stateless JWT Cookie + persistent auth token
+var response = await state.client.post(Authenticate()
+    ..provider = 'apple'
+    ..accessToken = idToken, args: {
+        'authorizationCode': credentials.authorizationCode,
+        'givenName': credentials.givenName,
+        'familyName': credentials.familyName,
+    }); // JwtAuthProvider.UseTokenCookie returns session as JWT
+
+state.saveAuth(response);
+```
+
+### Persistent Authenticated Sessions
+
+We recommend using JWT to store authenticated sessions as it allows using a single approach to support multiple OAuth providers, inc. Username/Password Credentials Auth if you want your App to support it, it's also the fastest & most resilient Auth Provider which requires no I/O to validate & no server state as it's all encapsulated within the stateless client JWT token.
+
+As all DTOs are JSON Serializable, the easiest way to persist Authentication is to save the `AuthenticateResponse` 
+(which contains both JWT Bearer & Refresh Tokens) in Flutter's `SharedPreferences` abstraction which has implementations 
+available in all its supported platforms. 
+
+Populating a Service Client with `bearerToken` and `refreshToken` enables it to make authenticated requests which is 
+done on successful Sign in requests and when the App is initialized which is also what allows for persistent authentication across App restarts. 
+
+```dart
+class AppState extends ChangeNotifier {
+  SharedPreferences prefs;
+  IServiceClient client;
+  AuthenticateResponse auth;
+  bool hasInit = false;
+
+  bool get isAuthenticated => auth != null;
+
+  AppState({this.client});
+
+  Future<AppState> init() async {
+    prefs = await SharedPreferences.getInstance();
+    var json = prefs.getString('auth');
+    auth = json != null ? AuthenticateResponse.fromJson(jsonDecode(json)) : null;
+
+    initClientAuth(client, auth);
+
+    if (auth != null && !await checkIsAuthenticated(client)) {
+      auth = client.bearerToken = client.refreshToken = null;
+      prefs.remove('auth');
+    }
+    hasInit = true;
+    return this;
+  }
+
+  void signOut() => saveAuth(null);
+
+  void saveAuth(AuthenticateResponse response) {
+    auth = response;
+    if (auth != null) {
+      var json = jsonEncode(auth.toJson());
+      prefs.setString('auth', json);
+    } else {
+      prefs.remove('auth');
+    }
+    initClientAuth(client, auth);
+    notifyListeners();
+  }
+}
+
+void initClientAuth(IServiceClient client, AuthenticateResponse auth) {
+  client.bearerToken = auth?.bearerToken;
+  client.refreshToken = auth?.refreshToken;
+  if (auth == null) {
+    client.clearCookies();
+  }
+}
+
+Future<bool> checkIsAuthenticated(IServiceClient client) async {
+  try {
+    await client.post(Authenticate());
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+```
+
+When signing out we also want to remove its cookies to clear its `ss-tok` authenticated JWT Cookie inc. any other user identifying cookies.
+
+The call to `notifyListeners()` is part of Flutter's `ChangeNotifier` 
+[Simple app state management](https://flutter.dev/docs/development/data-and-backend/state-mgmt/simple) solution which notifies widgets using it of state changes, triggering re-rendering of its UI.
+
+### Authenticated API Requests
+
+To test Authentication the App makes a call to `HelloSecure` Secured C# ServiceStack Service that validates Auth only
+access using the `[ValidateIsAuthenticated]` [declarative validation attribute](https://docs.servicestack.net/declarative-validation):
+
+```csharp
+[ValidateIsAuthenticated]
+[Route("/hello/secure")]
+[Route("/hello/secure/{Name}")]
+public class HelloSecure : IReturn<HelloResponse>
+{
+    public string Name { get; set; }
+}
+
+public class HelloResponse
+{
+    public string Result { get; set; }
+}
+
+public class MyServices : Service
+{
+    public object Any(HelloSecure request) => new HelloResponse {Result = $"Secure {request.Name}!"};
+}
+```
+
+Which uses the Dart client DTOs generated using the [Dart ServiceStack Reference](https://docs.servicestack.net/dart-add-servicestack-reference) feature to perform its Typed API Request:
+
+```dart
+  floatingActionButton: FloatingActionButton(
+    onPressed: _callService,
+    tooltip: 'HTTP API Example',
+    child: Icon(Icons.play_arrow),
+  ), // This trailing comma makes auto-formatting nicer for build methods.
+
+//...
+
+  Future<void> _callService() async {
+    try {
+      var client = Provider.of<AppState>(context, listen: false).client;
+      var response = await client.get(HelloSecure()..name = "Flutter");
+      setState(() {
+        result = response.result;
+      });
+    } on WebServiceException catch (e) {
+      setState(() {
+        result = "${e.statusCode}: ${e.message}";
+      });
+    }
+  }
+```
+
+Which if authenticated will update the UI with API Response for both iOS:
+
+![](https://raw.githubusercontent.com/ServiceStack/docs/master/docs/images/dev/ios-flutter-auth-request.jpeg)
+
+and Android:
+
+![](https://raw.githubusercontent.com/ServiceStack/docs/master/docs/images/dev/android-flutter-secure.png)
+
+
+Or fail with an `Unauthorized: Not Authenticated` error if the user is not Signed in.
+
+### Resetting App Sign in
+
+As the Sign in behavior is different for new & existing users you may need to find yourself needing to retest the new user workflow which you can do by removing your existing relationship to your App by signing into your Apple Id:
+
+  - [appleid.apple.com](https://appleid.apple.com)
+
+Then under **Security** click on **Manage apps & websites...**
+
+![](https://raw.githubusercontent.com/ServiceStack/docs/master/docs/images/dev/appleid-manage-signin.png)
+
+Which will let you delete your existing user id and relationship with existing Apps you've signed into:
+
+![](https://raw.githubusercontent.com/ServiceStack/docs/master/docs/images/dev/appleid-reset-signin.png)
+
+Now next time you Sign in to your App it will behave as an initial new User request complete with a new unique user id.
 
 ### Flutter Android sign_in_with_apple requirements
 
@@ -130,26 +360,16 @@ It's already configured in this project, but to be able to use [sign_in_with_app
 </application>
 ```
 
-To get the `AppleAuthProvider` to redirect to your Android's App intent you'll need to configure it with `.Use(AppleAuthFeature.FlutterSignInWithApple)`, e.g:
-
 #### ServiceStack AppleAuthProvider configuration
+
+This client App configuration works in combination with the Server's `AppleAuthProvider` to redirect to your Android's App intent which needs to be configured with:
 
 ```csharp
 new AppleAuthProvider(AppSettings)
     .Use(AppleAuthFeature.FlutterSignInWithApple), 
 ```
 
-Where it adds support for `?ReturnUrl=android:<android-package-id>` Callback URLs that your Flutter Android App needs to use, e.g:
-
-#### Flutter App
-
-```dart
-var redirectURL = "https://dev.servicestack.com:5001/auth/apple?ReturnUrl=android:com.servicestack.auth";
-final appleIdCredential = await SignInWithApple.getAppleIDCredential(scopes: [
-    AppleIDAuthorizationScopes.email,
-    AppleIDAuthorizationScopes.fullName], 
-webAuthenticationOptions: WebAuthenticationOptions(clientId:clientID, redirectUri:Uri.parse(redirectURL)));
-```
+Where it adds support for `?ReturnUrl=android:<android-package-id>` Callback URLs that your Flutter Android App needs to use.
 
 ### Advanced Configuration
 
