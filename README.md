@@ -138,12 +138,12 @@ The native integration in iOS is more streamlined with iOS handling the Auth flo
 
 ```dart
 var clientID = "net.servicestack.myappid";
-var redirectURL = "https://dev.servicestack.com:5001/auth/apple?ReturnUrl=android:com.servicestack.auth";
+var redirect = "https://dev.servicestack.com:5001/auth/apple?ReturnUrl=android:com.servicestack.auth";
 var scopes = [ AppleIDAuthorizationScopes.email, AppleIDAuthorizationScopes.fullName ];
 final credentials = Platform.isAndroid
-  ? await SignInWithApple.getAppleIDCredential(scopes: scopes,
-      webAuthenticationOptions: WebAuthenticationOptions(clientId:clientID, redirectUri:Uri.parse(redirectURL)))
-  : await SignInWithApple.getAppleIDCredential(scopes: scopes);
+  ? await SignInWithApple.getAppleIDCredential(scopes:scopes,
+      webAuthenticationOptions:WebAuthenticationOptions(clientId:clientID,redirectUri:Uri.parse(redirect)))
+  : await SignInWithApple.getAppleIDCredential(scopes:scopes);
 ```
 
 ### New User Registration
@@ -272,7 +272,8 @@ public class HelloResponse
 
 public class MyServices : Service
 {
-    public object Any(HelloSecure request) => new HelloResponse {Result = $"Secure {request.Name}!"};
+    public object Any(HelloSecure request) => 
+        new HelloResponse { Result = $"Secure {request.Name}!" };
 }
 ```
 
