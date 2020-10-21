@@ -372,9 +372,299 @@ new AppleAuthProvider(AppSettings)
 
 Where it adds support for `?ReturnUrl=android:<android-package-id>` Callback URLs that your Flutter Android App needs to use.
 
+## SwiftUI App
+
+This repo also includes a SwiftUI iOS Example App available at [/swift/MyApp](https://github.com/NetCoreApps/AppleSignIn/tree/master/swift/MyApp) as it'll likely end up being another popular platform that will utilize **Sign in with Apple**. 
+
+It's a good idea to checkout Apple's official docs for their recommended approach for 
+[Implementing User Authentication with Sign in with Apple](https://developer.apple.com/documentation/authenticationservices/implementing_user_authentication_with_sign_in_with_apple) in Swift Apps which includes a 
+sample iOS Storyboard Swift App which enlists the built-in [Authentication Services Framework](https://developer.apple.com/documentation/authenticationservices) for iOS's native Sign in feature.
+
+For simplicity & comparison purposes we've developed an App similar to the Flutter example using
+Apple's new declarative state-of-the-art [SwiftUI Framework](https://developer.apple.com/xcode/swiftui/), which like 
+Flutter is a declarative Reactive UI Framework allowing you to construct your App's UI & logic in code - most of which is 
+contained within [ContentView.swift](https://github.com/NetCoreApps/AppleSignIn/blob/master/swift/MyApp/MyApp/ContentView.swift).
+
+#### Real device needed to test Sign in with Apple
+
+Whilst the iOS Simulator can run the rest of the App, a real device was needed to test the actual Sign in functionality
+which otherwise hangs in the simulator which has been reported is due to 2FA which is required to use Sign in with Apple.
+
+### Enabling Sign In With Apple Capability
+
+To enable Sign In functionality in your iOS App you'll need to add the **Sign in with Apple** capability in your App's **Target** > **Signing & Capabilities** window:
+
+![](https://raw.githubusercontent.com/ServiceStack/docs/master/docs/images/dev/ios-swiftui-xcode-capability.png)
+
+### SwiftUI Layout
+
+SwiftUI's declarative API is able to expressively capture our UI in its different states within this code fragment 
+below:
+
+```swift
+struct ContentView: View {
+    @ObservedObject var vm = ViewModel()
+    
+    var body: some View {
+         VStack {
+            if !vm.hasInit {
+                Text("Loading...")
+            } else {
+                Text(vm.result)
+                Button("Go!") {
+                    vm.doSecureRequest()
+                }
+                if let auth = vm.auth {
+                    VStack {
+                        Text("Hi \(auth.displayName ?? "")")
+                        if vm.authState != "" {
+                            Text("authState: \(vm.authState)")
+                                .foregroundColor(vm.authState == "authorized" ? .green : .primary)
+                        }
+                        Button("Sign Out") { vm.signOut() }
+                    }
+                } else {
+                    AppleSignInButton()
+                        .frame(width: 200, height: 50)
+                        .onTapGesture {
+                            self.vm.getRequest()
+                        }
+                }
+            }
+        }
+    }
+}
+
+struct AppleSignInButton: UIViewRepresentable {
+ func makeUIView(context: Context) -> ASAuthorizationAppleIDButton {
+  return ASAuthorizationAppleIDButton(
+    authorizationButtonType: .signUp,
+    authorizationButtonStyle: .white)
+ }
+ func updateUIView(_ uiView: ASAuthorizationAppleIDButton, context:Context) {}
+}
+```
+
+Which for an initialized unauthenticated user will render the **Go!** button with a Sign in button:
+
+![](https://raw.githubusercontent.com/ServiceStack/docs/master/docs/images/dev/ios-swiftui-home.png)
+
+The Sign in buttons UI is defined by `AppleSignInButton()` which is our wrapper around Apple's `ASAuthorizationAppleIDButton()` that allows for several customizations to change its appearance. 
+When the button is pressed it calls our ViewModel `getRequest()` method to initiate the Sign in request.
+
+`@ObservedObject` is one of SwiftUI's constructs for managing state, effectively it's the mechanism by which your App modifies to re-render its UI. A good article explaining the features and differences of each construct can be found in
+[SwiftUI: @State vs @StateObject vs @ObservedObject vs @EnvironmentObject](https://purple.telstra.com/blog/swiftui---state-vs--stateobject-vs--observedobject-vs--environme).
+
+Inside `getRequest()` we can see it's just calling `signInWithApple.getAppleRequest()` which is our custom controller
+used to manage the Sign in request.
+
+```swift
+class ViewModel: ObservableObject {
+    private lazy var signInWithApple = SignInWithAppleCoordinator(vm:self)
+    private lazy var client = createClient()
+    
+    func createClient() -> JsonServiceClient {
+        let client = JsonServiceClient(baseUrl: "https://dev.servicestack.com:5001")
+        client.ignoreCert = true
+        return client
+    }
+    
+    @Published var auth: AuthenticateResponse?
+    var isAuthenticated:Bool { auth != nil }
+    @Published var hasInit:Bool = false
+    @Published var result:String = ""
+    @Published var authState:String = ""
+    
+    func getRequest() {
+        signInWithApple.getAppleRequest()
+    }
+    //....
+}
+```
+
+The `SignInWithAppleCoordinator` uses the `ASAuthorizationController` to initiate the request and assigns itself as the `ASAuthorizationControllerDelegate` used to handle its success & error callbacks:
+
+```swift
+final class SignInWithAppleCoordinator : NSObject {
+    let vm: ViewModel
+    init(vm:ViewModel) {
+        self.vm = vm
+    }
+    
+    func getAppleRequest() {
+        let appleIdProvider = ASAuthorizationAppleIDProvider()
+        let request = appleIdProvider.createRequest()
+        request.requestedScopes = [.fullName, .email]
+        let authController = ASAuthorizationController(authorizationRequests: [request])
+        authController.delegate = self
+        authController.performRequests()
+    }
+    
+    private func setUserInfo(for credential: ASAuthorizationAppleIDCredential) {
+        ASAuthorizationAppleIDProvider().getCredentialState(forUserID: credential.user, completion: { 
+          credentialState, error in
+            var authState: String?
+            switch credentialState {
+            case .authorized: authState = "authorized"
+            case .notFound: authState = "notFound"
+            case .revoked: authState = "revoked"
+            case .transferred: authState = "transferred"
+            @unknown default: fatalError()
+            }
+            self.vm.setUser(credential:credential, authState:authState!)
+        })
+    }
+}
+
+extension SignInWithAppleCoordinator : ASAuthorizationControllerDelegate 
+{    
+    func authorizationController(controller: ASAuthorizationController, 
+      didCompleteWithAuthorization authorization: ASAuthorization) {
+        if let credential = authorization.credential as? ASAuthorizationAppleIDCredential {
+            setUserInfo(for: credential)
+        }
+    }
+    
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        print("Sign In with Apple Error: \(error.localizedDescription)")
+    }
+}
+```
+
+The Sign in request is initiated with `authController.performRequests()` which on first usage launches a splash screen
+explaining the benefits of **Sign in with Apple**:
+
+![](https://raw.githubusercontent.com/ServiceStack/docs/master/docs/images/dev/ios-swiftui-signin-with-apple-splash.png)
+
+Then new users will be able to customize the name & email they'll share with your App:
+
+![](https://raw.githubusercontent.com/ServiceStack/docs/master/docs/images/dev/ios-swiftui-signin-with-apple-new-user.png)
+
+Upon successful authentication the `authorizationController` callback gets invoked with the users credentials captured
+in the `ASAuthorizationAppleIDCredential` struct that eventually calls `setUser()` with both the authenticated `credential` and its `authState`.
+
+`setUser()` then uses the authorized `credential` to authenticate with our remote ServiceStack instance, passing
+through the `givenName` and `familyName` that are only populated on a new Users initial Sign in request with the App.
+
+```swift
+func setUser(credential: ASAuthorizationAppleIDCredential, authState: String) {
+    
+    DispatchQueue.main.async {
+        self.authState = authState
+
+        if authState == "authorized" {
+            let request = Authenticate()
+            request.provider = "apple"
+            request.accessToken = String(decoding:credential.identityToken!, as: UTF8.self)
+            request.meta = [
+                "authorizationCode": String(decoding:credential.authorizationCode!, as: UTF8.self),
+                "givenName": credential.fullName?.givenName ?? "",
+                "familyName": credential.fullName?.familyName ?? "",
+            ]
+            _ = self.client.postAsync(request)
+                .done { r in
+                    self.auth = r
+                    UserDefaults.standard.set(r.toJson(), forKey: "auth")
+                    self.client.bearerToken = r.bearerToken
+                    self.client.refreshToken = r.refreshToken
+                }
+                .catch { error in
+                    let status:ResponseStatus = error.convertUserInfo()!
+                    self.result = "\(status.errorCode ?? ""): \(status.message ?? "")"
+                }
+        }
+    }
+}
+```
+
+Like the Flutter example, we save the JSON serialized `AuthenticateResponse` DTO to enable persistent Authentication
+across App restarts and populate the `JsonServiceClient` with the JWT `bearerToken` and `refreshToken` to configure
+the authenticated Service Client. 
+
+To Sign out the user we can use a new fresh client instance and remove any shared cookies that were created by 
+the previous client.
+
+```swift
+func signOut() {
+    DispatchQueue.main.async {
+        self.auth = nil
+        HTTPCookieStorage.shared.cookies?.forEach(HTTPCookieStorage.shared.deleteCookie)
+        self.client = self.createClient()
+    }
+    UserDefaults.standard.removeObject(forKey: "auth")
+}
+```
+
+### Loading persistent JWT Auth Tokens
+
+Which is restored on App start and verified the JWT Token is still valid by calling the `Authenticate` Service
+with an empty DTO which returns if Authenticated otherwise throws a **401 Unauthorized** Error if they're not.
+
+```swift
+class ViewModel: ObservableObject {
+  init() { load() }
+  //...
+
+  func load() {
+      if let authJson = UserDefaults.standard.string(forKey: "auth"),
+          let auth = AuthenticateResponse.fromJson(authJson) {
+          client.bearerToken = auth.bearerToken
+          client.refreshToken = auth.refreshToken
+          client.postAsync(Authenticate())
+              .done { r in
+                  self.auth = auth
+              }
+              .catch { error in
+                  self.client.bearerToken = nil
+                  self.client.refreshToken = nil
+                  UserDefaults.standard.removeObject(forKey: "auth")
+              }
+              .finally {
+                  self.hasInit = true
+              }
+      } else {
+          self.hasInit = true
+      }
+  }
+}
+```
+
+#### Apple recommends maintaining Auth tokens in Keychain
+
+Whilst this example uses `UserDefaults`, Apple's recommendation is to instead [save auth tokens in the User's Keychain](https://developer.apple.com/documentation/authenticationservices/implementing_user_authentication_with_sign_in_with_apple#3546459).
+
+### Authenticated Requests
+
+With our Service Client configured with our JWT Auth Tokens it can now be used to perform authenticated requests using 
+the generic `JsonServiceClient` to send typed Swift DTOs generated from the 
+[Swift ServiceStack Reference](https://docs.servicestack.net/swift-add-servicestack-reference) feature:
+
+```swift
+func doSecureRequest() {
+    self.result = ""
+    DispatchQueue.main.async {
+        let request = HelloSecure()
+        request.name = "SwiftUI"
+        _ = self.client.getAsync(request)
+            .done { r in
+                self.result = r.result ?? ""
+            }
+            .catch { error in
+                let status:ResponseStatus = error.convertUserInfo()!
+                self.result = "\(status.errorCode ?? ""): \(status.message ?? "")"
+            }
+    }
+}
+```
+
+Which when sent from an authenticated Service Client will result in the expected:
+
+![](https://raw.githubusercontent.com/ServiceStack/docs/master/docs/images/dev/ios-swiftui-auth-request.jpeg)
+
 ### Advanced Configuration
 
-The behavior of the `AppleAuthProvider` can be further customized with the following configuration:
+As with ServiceStack's other [OAuth Providers](https://docs.servicestack.net/authentication-and-authorization#oauth-providers), the behavior of the `AppleAuthProvider` can be further customized with the below configuration, when registering the `AppleAuthProvider` or in your App's configured 
+[App Settings](https://docs.servicestack.net/appsettings):
 
 ```csharp
 public class AppleAuthProvider
@@ -428,7 +718,11 @@ public class AppleAuthProvider
     // appsettings: oauth.apple.CacheKey
     public bool CacheIssuerSigningKeys
 
-    // Provide custom DisplayName resolver function when not allowed by User and sent by Apple
+    // How long before re-validating Sign in RefreshToken, default: 1 day.
+    // Set to null to disable RefreshToken validation.
+    public TimeSpan? ValidateRefreshTokenExpiry
+
+    // Custom DisplayName resolver function when not sent by Apple
     public Func<IAuthSession,IAuthTokens, string> ResolveUnknownDisplayName
 }
 ```
