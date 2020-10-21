@@ -190,9 +190,16 @@ class ViewModel: ObservableObject {
            let auth = AuthenticateResponse.fromJson(authJson) {
             client.bearerToken = auth.bearerToken
             client.refreshToken = auth.refreshToken
-            _ = client.postAsync(Authenticate())
+            client.postAsync(Authenticate())
                 .done { r in
-                    self.auth = r
+                    self.auth = auth
+                }
+                .catch { error in
+                    self.client.bearerToken = nil
+                    self.client.refreshToken = nil
+                    UserDefaults.standard.removeObject(forKey: "auth")
+                }
+                .finally {
                     self.hasInit = true
                 }
         } else {
