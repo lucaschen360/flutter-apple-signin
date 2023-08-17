@@ -1,7 +1,5 @@
 # Sign In with Apple
 
-ServiceStack Sign In with Apple Integration Examples
-
 ![](https://raw.githubusercontent.com/ServiceStack/docs/master/docs/images/dev/web-signin-with-apple-login.png)
 
 ### Sign In with Apple Requirements
